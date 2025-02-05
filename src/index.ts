@@ -22,7 +22,7 @@ const api = axios.create({
 const server = new Server(
   {
     name: "attio-mcp-server",
-    version: "0.0.1",
+    version: "0.0.3",
   },
   {
     capabilities: {
