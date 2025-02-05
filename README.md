@@ -1,3 +1,5 @@
+__important!__ this is Costa's internal fork of the attio server, this adds API key injection to the public repo
+
 # attio-mcp-server
 
 This is an MCP server for [Attio](https://attio.com/), the AI-native CRM. It allows mcp clients (like Claude) to connect to the Attio API.
@@ -17,6 +19,11 @@ You will need:
 
 This is expected to be a *bearer token* which means you can get one through the [API Explorer](https://developers.attio.com/reference/get_v2-objects) on the right hand side or configure OAuth and retrieve one throught the Attio API.
 
+This server also supports per-request API key injection. You can enable API key injection mode by setting an environment variable:
+
+```sh
+API_KEY_INJECTION = true
+```
 
 ### Claude Desktop Configuration
 
