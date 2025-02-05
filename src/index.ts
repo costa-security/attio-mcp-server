@@ -14,7 +14,7 @@ import axios from "axios";
 const api = axios.create({
   baseURL: "https://api.attio.com/v2",
   headers: {
-    "Authorization": `Bearer ${process.env.ATTIO_API_KEY}`,
+    "Authorization": `Bearer ${process.env.ATTIO_API_KEY}`, // Will be overridden if in API key injection mode
     "Content-Type": "application/json",
   },
 });
@@ -57,33 +57,65 @@ function createErrorResult(error: Error, url: string, method: string, responseDa
   };
 }
 
-// Example: List Resources Handler (List Companies)
-server.setRequestHandler(ListResourcesRequestSchema, async (request) => {
-  const path = "/objects/companies/records/query";
-  try {
-    const response = await api.post(path, {
-      limit: 20,
-      sorts: [{ attribute: 'last_interaction', field: 'interacted_at', direction: 'desc' }]
-    });
-    const companies = response.data.data || [];
 
-    return {
-      resources: companies.map((company: any) => ({
-        uri: `attio://companies/${company.id?.record_id}`,
-        name: company.values?.name?.[0]?.value || "Unknown Company",
-        mimeType: "application/json",
-      })),
-      description: `Found ${companies.length} companies that you have interacted with most recently`,
-    };
-  } catch (error) {
-    return createErrorResult(
-      error instanceof Error ? error : new Error("Unknown error"),
-      path,
-      "POST",
-      (error as any).response?.data || {}
-    );
-  }
-});
+// Example: List Resources Handler (List Companies)
+if (!process.env.API_KEY_INJECTION) {
+  server.setRequestHandler(ListResourcesRequestSchema, async (request) => {
+    const path = "/objects/companies/records/query";
+    try {
+      const response = await api.post(path, {
+        limit: 20,
+        sorts: [{ attribute: 'last_interaction', field: 'interacted_at', direction: 'desc' }]
+      });
+      const companies = response.data.data || [];
+
+      return {
+        resources: companies.map((company: any) => ({
+          uri: `attio://companies/${company.id?.record_id}`,
+          name: company.values?.name?.[0]?.value || "Unknown Company",
+          mimeType: "application/json",
+        })),
+        description: `Found ${companies.length} companies that you have interacted with most recently`,
+      };
+    } catch (error) {
+      return createErrorResult(
+        error instanceof Error ? error : new Error("Unknown error"),
+        path,
+        "POST",
+        (error as any).response?.data || {}
+      );
+    }
+  });
+}
+
+if (!process.env.API_KEY_INJECTION) {
+  server.setRequestHandler(ListResourcesRequestSchema, async (request) => {
+    const path = "/objects/companies/records/query";
+    try {
+      const response = await api.post(path, {
+        limit: 20,
+        sorts: [{ attribute: 'last_interaction', field: 'interacted_at', direction: 'desc' }]
+      });
+      const companies = response.data.data || [];
+
+      return {
+        resources: companies.map((company: any) => ({
+          uri: `attio://companies/${company.id?.record_id}`,
+          name: company.values?.name?.[0]?.value || "Unknown Company",
+          mimeType: "application/json",
+        })),
+        description: `Found ${companies.length} companies that you have interacted with most recently`,
+      };
+    } catch (error) {
+      return createErrorResult(
+        error instanceof Error ? error : new Error("Unknown error"),
+        path,
+        "POST",
+        (error as any).response?.data || {}
+      );
+    }
+  });
+}
 
 // Example: Read Resource Handler (Get Company Details)
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
@@ -111,8 +143,11 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   }
 });
 
+
 // Example: List Tools Handler
 server.setRequestHandler(ListToolsRequestSchema, async () => {
+  const includeApiKey = process.env.API_KEY_INJECTION;
+
   return {
     tools: [
       {
@@ -125,8 +160,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "string",
               description: "Company name or keyword to search for",
             },
+            ...(includeApiKey && {
+              apiKey: {
+                type: "string",
+                description: "Attio user API Key",
+              },
+            }),
           },
-          required: ["query"],
+          required: ["query", ...(includeApiKey ? ["apiKey"] : [])],
         },
       },
       {
@@ -139,8 +180,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "string",
               description: "URI of the company to read",
             },
+            ...(includeApiKey && {
+              apiKey: {
+                type: "string",
+                description: "Attio user API Key",
+              },
+            }),
           },
-          required: ["uri"],
+          required: ["uri", ...(includeApiKey ? ["apiKey"] : [])],
         },
       },
       {
@@ -161,8 +208,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "number",
               description: "Number of notes to skip (optional, default 0)",
             },
+            ...(includeApiKey && {
+              apiKey: {
+                type: "string",
+                description: "Attio user API Key",
+              },
+            }),
           },
-          required: ["uri"],
+          required: ["uri", ...(includeApiKey ? ["apiKey"] : [])],
         },
       },
       {
@@ -183,28 +236,40 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "string",
               description: "Text content of the note",
             },
+            ...(includeApiKey && {
+              apiKey: {
+                type: "string",
+                description: "Attio user API Key",
+              },
+            }),
           },
-          required: ["companyId", "noteTitle", "noteText"],
+          required: ["companyId", "noteTitle", "noteText", ...(includeApiKey ? ["apiKey"] : [])],
         },
       },
     ],
   };
 });
 
+
 // Example: Call Tool Handler with enhanced error handling
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const toolName = request.params.name;
+  const apiKey = process.env.API_KEY_INJECTION ? request.params.arguments?.apiKey : process.env.ATTIO_API_KEY;
+  const authHeader = { headers: { Authorization: `Bearer ${apiKey}` } };
+
   try {
 
     if (toolName === "search-companies") {
       const query = request.params.arguments?.query as string;
       const path = "/objects/companies/records/query";
       try {
-        const response = await api.post(path, {
-          filter: {
-            name: { "$contains": query },
-          }
-        });
+        const response = await api.post(
+          path, 
+          {
+            filter: {
+              name: { "$contains": query },
+            }
+          }, authHeader);
         const results = response.data.data || [];
 
         const companies = results.map((company: any) => {
@@ -237,7 +302,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const companyId = uri.replace("attio://companies/", "");
       const path = `/objects/companies/records/${companyId}`;
       try {
-        const response = await api.get(path);
+        const response = await api.get(path, authHeader);
         return {
           content: [
             {
@@ -265,7 +330,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const path = `/notes?limit=${limit}&offset=${offset}&parent_object=companies&parent_record_id=${companyId}`;
 
       try {
-        const response = await api.get(path);
+        const response = await api.get(path, authHeader);
         const notes = response.data.data || [];
 
         return {
@@ -302,7 +367,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             title: `[AI] ${noteTitle}`,
             content: noteText
           },
-        });
+        }, authHeader);
 
         return {
           content: [
@@ -340,7 +405,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 // Main function
 async function main() {
   try {
-    if (!process.env.ATTIO_API_KEY) {
+    if (!process.env.ATTIO_API_KEY && !process.env.API_KEY_INJECTION) {
       throw new Error("ATTIO_API_KEY environment variable not found");
     }
 
