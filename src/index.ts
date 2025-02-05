@@ -224,9 +224,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {
-            companyId: {
+            uri: {
               type: "string",
-              description: "ID of the company to add the note to",
+              description: "URI of the company to add the note to",
             },
             noteTitle: {
               type: "string",
@@ -353,7 +353,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     if (toolName === "create-company-note") {
-      const companyId = request.params.arguments?.companyId as string;
+      const uri = request.params.arguments?.uri as string;
+      const companyId = uri.replace("attio://companies/", "");
       const noteTitle = request.params.arguments?.noteTitle as string;
       const noteText = request.params.arguments?.noteText as string;
       const url = `notes`;
